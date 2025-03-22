@@ -1,65 +1,68 @@
+const express = require("express");
 const fs = require("fs");
 const PDFDocument = require("pdfkit");
 
-// Load JSON file
-const jsonFile = __dirname + "/messages.json";
-const outputPDF = "chat_conversations.pdf";
+const app = express();
+const PORT = 3000;
 
-// Read JSON data
-const jsonData = JSON.parse(fs.readFileSync(jsonFile, "utf-8"));
+// Generate PDF Function
+const generatePDF = () => {
+  const jsonFile = __dirname + "/messages.json";
+  const outputPDF = "chat_conversations.pdf";
 
-// Create a PDF Document
-const doc = new PDFDocument();
-const stream = fs.createWriteStream(outputPDF);
-doc.pipe(stream);
+  const jsonData = JSON.parse(fs.readFileSync(jsonFile, "utf-8"));
 
-// Add a title
-doc.fontSize(20).text("Chat Conversations Export", { align: "center" });
-doc.moveDown();
+  const doc = new PDFDocument();
+  const stream = fs.createWriteStream(outputPDF);
+  doc.pipe(stream);
 
-// Loop through conversations
-jsonData.conversations.forEach((conversation, convoIndex) => {
-  doc
-    .fontSize(16)
-    .fillColor("black")
-    .text(`Chat with: ${conversation.displayName || "Unknown"}`, {
-      underline: true,
-    });
+  doc.fontSize(20).text("Chat Conversations Export", { align: "center" });
   doc.moveDown();
 
-  // Loop through messages in each conversation
-  conversation.MessageList.forEach((msg, index) => {
+  jsonData.conversations.forEach((conversation, convoIndex) => {
     doc
-      .fontSize(12)
-      .fillColor("blue")
-      .text(`Sender: ${msg.displayName || "Unknown"}`);
-    doc
-      .fillColor("gray")
-      .text(`Time: ${msg.originalarrivaltime || "No Timestamp"}`);
-    doc
+      .fontSize(16)
       .fillColor("black")
-      .text(`Message: ${msg.content.replace(/<.*?>/g, "") || "No Content"}`);
+      .text(`Chat with: ${conversation.displayName || "Unknown"}`, {
+        underline: true,
+      });
     doc.moveDown();
 
-    // Add separator after each message
-    if (index < conversation.MessageList.length - 1) {
+    conversation.MessageList.forEach((msg, index) => {
       doc
-        .strokeColor("gray")
-        .lineWidth(0.5)
-        .moveTo(50, doc.y)
-        .lineTo(550, doc.y)
-        .stroke();
+        .fontSize(12)
+        .fillColor("blue")
+        .text(`Sender: ${msg.displayName || "Unknown"}`);
+      doc
+        .fillColor("gray")
+        .text(`Time: ${msg.originalarrivaltime || "No Timestamp"}`);
+      doc
+        .fillColor("black")
+        .text(`Message: ${msg.content.replace(/<.*?>/g, "") || "No Content"}`);
       doc.moveDown();
+    });
+
+    if (convoIndex < jsonData.conversations.length - 1) {
+      doc.addPage();
     }
   });
 
-  // Add a space between conversations
-  if (convoIndex < jsonData.conversations.length - 1) {
-    doc.addPage(); // Start a new page for the next conversation
-  }
+  doc.end();
+  return outputPDF;
+};
+
+// Route to serve the homepage
+app.get("/", (req, res) => {
+  res.send("Welcome! Go to <a href='/download'>/download</a> to get the PDF.");
 });
 
-// Finalize PDF
-doc.end();
+// Route to generate and serve the PDF
+app.get("/download", (req, res) => {
+  const pdfPath = generatePDF();
+  res.download(pdfPath);
+});
 
-console.log("✅ PDF file has been created:", outputPDF);
+// Start the server
+app.listen(PORT, () => {
+  console.log(`✅ Server running on http://localhost:${PORT}`);
+});
